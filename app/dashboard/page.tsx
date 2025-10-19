@@ -17,8 +17,8 @@ import { Sparkles, Copy, LogOut, Loader2, Image } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [user, setUser] = useState<BasicUser | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   
