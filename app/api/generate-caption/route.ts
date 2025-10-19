@@ -32,15 +32,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No credits remaining' }, { status: 403 })
     }
 
-    // Generate captions using Groq API
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    // Generate captions using OpenAI API
+    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.2-90b-text-preview',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -76,13 +76,14 @@ Return the response in this exact JSON format:
       })
     })
 
-    if (!groqResponse.ok) {
-      console.error('Groq API error:', await groqResponse.text())
+    if (!openaiResponse.ok) {
+      const errorData = await openaiResponse.json()
+      console.error('OpenAI API error:', errorData)
       return NextResponse.json({ error: 'Failed to generate caption' }, { status: 500 })
     }
 
-    const groqData = await groqResponse.json()
-    const content = groqData.choices[0].message.content
+    const openaiData = await openaiResponse.json()
+    const content = openaiData.choices[0].message.content
 
     // Parse the JSON response from the AI
     let parsedContent
@@ -94,7 +95,7 @@ Return the response in this exact JSON format:
       } else {
         parsedContent = JSON.parse(content)
       }
-    } catch (_e) {
+    } catch (e) {
       console.error('Failed to parse AI response:', content)
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
