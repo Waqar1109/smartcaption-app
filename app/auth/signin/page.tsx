@@ -32,7 +32,7 @@ export default function SignInPage() {
         router.push('/dashboard')
         router.refresh()
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error('Something went wrong')
     } finally {
       setLoading(false)
