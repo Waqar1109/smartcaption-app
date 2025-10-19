@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile',
+        model: 'llama-3.2-90b-text-preview',
         messages: [
           {
             role: 'system',
