@@ -1,3 +1,13 @@
+type Profile = {
+  credits_remaining: number;
+  subscription_tier: string;
+};
+
+type BasicUser = {
+  id: string;
+  email?: string | null;
+};
+
 'use client'
 
 import { useState, useEffect } from 'react'
