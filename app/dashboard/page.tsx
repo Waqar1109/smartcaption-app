@@ -163,7 +163,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  What's your carousel about? *
+                  What&apos;s your carousel about? *
                 </label>
                 <textarea
                   value={topic}
