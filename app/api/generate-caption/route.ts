@@ -94,7 +94,7 @@ Return the response in this exact JSON format:
       } else {
         parsedContent = JSON.parse(content)
       }
-    } catch (e) {
+    } catch (_e) {
       console.error('Failed to parse AI response:', content)
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
