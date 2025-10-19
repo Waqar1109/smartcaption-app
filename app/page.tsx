@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Sparkles, Zap, Target, TrendingUp, Check, ArrowRight, Instagram, Video } from 'lucide-react'
+import { Sparkles, Zap, Target, TrendingUp, ArrowRight } from 'lucide-react'
 
 export default function HomePage() {
   return (
