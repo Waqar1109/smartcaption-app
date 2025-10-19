@@ -1,67 +1,78 @@
-type Profile = {
-  credits_remaining: number;
-  subscription_tier: string;
-};
-
-type BasicUser = {
-  id: string;
-  email?: string | null;
-};
-
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Copy, LogOut, Loader2, Image } from 'lucide-react'
+import { Sparkles, Copy, LogOut, Loader2, Image as IconImage } from 'lucide-react'
 import { toast } from 'sonner'
 
+type Profile = {
+  credits_remaining: number
+  subscription_tier?: string
+}
+
+type BasicUser = {
+  id: string
+  email?: string | null
+}
+
 export default function DashboardPage() {
+  const supabase = createClientComponentClient()
+  const router = useRouter()
+
   const [user, setUser] = useState<BasicUser | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  
+
   // Form state
   const [topic, setTopic] = useState('')
   const [slideCount, setSlideCount] = useState(5)
   const [tone, setTone] = useState('friendly')
   const [targetAudience, setTargetAudience] = useState('')
-  
+
   // Results state
   const [generatedCaptions, setGeneratedCaptions] = useState<string[]>([])
   const [hashtags, setHashtags] = useState<string[]>([])
   const [tips, setTips] = useState('')
-  
-  const supabase = createClientComponentClient()
-  const router = useRouter()
+
+  // --- Auth & profile fetch wrapped in useCallback (fixes exhaustive-deps) ---
+  const checkUser = useCallback(async () => {
+    try {
+      setLoading(true)
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        router.push('/auth/signin')
+        return
+      }
+
+      setUser({ id: session.user.id, email: session.user.email ?? null })
+
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('credits_remaining, subscription_tier')
+        .eq('id', session.user.id)
+        .single()
+
+      if (error) {
+        // Not fatal; just start with a default
+        setProfile({ credits_remaining: 0, subscription_tier: 'free' })
+      } else {
+        setProfile(profileData as Profile)
+      }
+    } catch (err) {
+      console.error('Error checking user:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [router, supabase])
 
   useEffect(() => {
     checkUser()
-  }, [])
+  }, [checkUser])
 
-  async function checkUser() {
-    setLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session) {
-      router.push('/auth/signin')
-      return
-    }
-
-    setUser(session.user)
-
-    // Get profile
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
-
-    setProfile(profileData)
-    setLoading(false)
-  }
-
+  // --- Actions ---
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/')
@@ -94,15 +105,20 @@ export default function DashboardPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        toast.error(data.error || 'Failed to generate captions')
+        toast.error(data?.error || 'Failed to generate captions')
         return
       }
 
-      setGeneratedCaptions(data.data.captions)
-      setHashtags(data.data.hashtags)
-      setTips(data.data.tips)
-      setProfile({ ...profile, credits_remaining: data.data.creditsRemaining })
-      
+      setGeneratedCaptions(data.data.captions as string[])
+      setHashtags(Array.isArray(data.data.hashtags) ? data.data.hashtags : [])
+      setTips(typeof data.data.tips === 'string' ? data.data.tips : '')
+
+      // Safely update credits even if profile was null
+      setProfile(prev => ({
+        credits_remaining: data.data.creditsRemaining ?? Math.max(0, (prev?.credits_remaining ?? 0) - 1),
+        subscription_tier: prev?.subscription_tier ?? 'free'
+      }))
+
       toast.success('Captions generated successfully!')
     } catch (error) {
       console.error('Error:', error)
@@ -118,12 +134,15 @@ export default function DashboardPage() {
   }
 
   function copyAllCaptions() {
-    const allText = generatedCaptions.map((caption, i) => `Slide ${i + 1}:\n${caption}`).join('\n\n') + 
-      '\n\nHashtags:\n' + hashtags.map(h => `#${h}`).join(' ')
+    const allText =
+      generatedCaptions.map((caption, i) => `Slide ${i + 1}:\n${caption}`).join('\n\n') +
+      '\n\nHashtags:\n' +
+      hashtags.map(h => `#${h}`).join(' ')
     navigator.clipboard.writeText(allText)
     toast.success('All captions copied!')
   }
 
+  // --- UI ---
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -146,7 +165,7 @@ export default function DashboardPage() {
               <div className="text-sm">
                 <span className="text-gray-600">Credits:</span>
                 <span className="ml-2 font-semibold text-purple-600">
-                  {profile?.credits_remaining || 0}
+                  {profile?.credits_remaining ?? 0}
                 </span>
               </div>
               <button
@@ -166,7 +185,7 @@ export default function DashboardPage() {
           {/* Input Form */}
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-              <Image className="w-6 h-6 text-purple-600" />
+              <IconImage className="w-6 h-6 text-purple-600" />
               Create Your Carousel Captions
             </h2>
 
@@ -190,10 +209,10 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="range"
-                  min="3"
-                  max="10"
+                  min={3}
+                  max={10}
                   value={slideCount}
-                  onChange={(e) => setSlideCount(parseInt(e.target.value))}
+                  onChange={(e) => setSlideCount(parseInt(e.target.value, 10))}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -211,11 +230,11 @@ export default function DashboardPage() {
                   onChange={(e) => setTone(e.target.value)}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 outline-none"
                 >
-                  <option value="friendly">Friendly & Conversational</option>
+                  <option value="friendly">Friendly &amp; Conversational</option>
                   <option value="professional">Professional</option>
-                  <option value="motivational">Motivational & Energetic</option>
+                  <option value="motivational">Motivational &amp; Energetic</option>
                   <option value="educational">Educational</option>
-                  <option value="humorous">Humorous & Fun</option>
+                  <option value="humorous">Humorous &amp; Fun</option>
                   <option value="inspirational">Inspirational</option>
                 </select>
               </div>
@@ -235,7 +254,7 @@ export default function DashboardPage() {
 
               <button
                 onClick={handleGenerate}
-                disabled={generating || !topic.trim() || (profile?.credits_remaining || 0) <= 0}
+                disabled={generating || !topic.trim() || (profile?.credits_remaining ?? 0) <= 0}
                 className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {generating ? (
@@ -251,7 +270,7 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              {(profile?.credits_remaining || 0) <= 0 && (
+              {(profile?.credits_remaining ?? 0) <= 0 && (
                 <p className="text-sm text-red-600 text-center">
                   No credits remaining. Upgrade to Pro for unlimited captions!
                 </p>
@@ -307,7 +326,9 @@ export default function DashboardPage() {
                         Recommended Hashtags
                       </span>
                       <button
-                        onClick={() => copyToClipboard(hashtags.map(h => `#${h}`).join(' '), 'Hashtags')}
+                        onClick={() =>
+                          copyToClipboard(hashtags.map(h => `#${h}`).join(' '), 'Hashtags')
+                        }
                         className="text-purple-600 hover:text-purple-700"
                       >
                         <Copy className="w-4 h-4" />
